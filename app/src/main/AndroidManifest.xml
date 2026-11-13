@@ -10,6 +10,8 @@
         android:label="Leaf Earn"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+        android:icon="@drawable/ic_launcher"
+        android:roundIcon="@drawable/ic_launcher"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
