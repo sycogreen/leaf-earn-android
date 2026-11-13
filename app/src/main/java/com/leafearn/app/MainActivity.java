@@ -28,11 +28,10 @@ public class MainActivity extends AppCompatActivity implements IUnityAdsInitiali
 
     private WebView webView;
     private static final String UNITY_GAME_ID = "800437007";
-    private static final String PRIMARY_PLACEMENT = "BP_Rewarded_Android";
-    private static final String FALLBACK_PLACEMENT = "Rewarded_Android";
-    private static final boolean TEST_MODE = true;
+    private static final String PLACEMENT_ID = "BP_Rewarded_Android";
+    private static final boolean TEST_MODE = true; // Public release ke waqt ise false kar dena
 
-    private String loadedPlacement = null;
+    private boolean isAdLoaded = false;
     private String lastLoadError = "Initializing Unity SDK...";
     private final Handler handler = new Handler(Looper.getMainLooper());
 
@@ -62,7 +61,6 @@ public class MainActivity extends AppCompatActivity implements IUnityAdsInitiali
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                // Remove "Built on Hatchable" floating badge inside APK
                 String hideBadgeJs =
                     "(function() {" +
                     "  function cleanBadge() {" +
@@ -82,9 +80,9 @@ public class MainActivity extends AppCompatActivity implements IUnityAdsInitiali
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 if (url.startsWith("https://leaf-earn.hatchable.site") ||
-                    url.contains("timewall.io") ||
+                    url.contains("cpalead.com") ||
                     url.contains("cpx-research.com") ||
-                    url.contains("cpalead.com")) {
+                    url.contains("timewall.io")) {
                     return false;
                 }
                 try {
@@ -108,8 +106,8 @@ public class MainActivity extends AppCompatActivity implements IUnityAdsInitiali
 
     @Override
     public void onInitializationComplete() {
-        lastLoadError = "Loading ad...";
-        loadRewardedAd(PRIMARY_PLACEMENT);
+        lastLoadError = "Loading BP_Rewarded_Android...";
+        loadRewardedAd();
     }
 
     @Override
@@ -118,24 +116,19 @@ public class MainActivity extends AppCompatActivity implements IUnityAdsInitiali
         handler.postDelayed(() -> UnityAds.initialize(getApplicationContext(), UNITY_GAME_ID, TEST_MODE, this), 5000);
     }
 
-    private void loadRewardedAd(final String placementId) {
-        UnityAds.load(placementId, new IUnityAdsLoadListener() {
+    private void loadRewardedAd() {
+        UnityAds.load(PLACEMENT_ID, new IUnityAdsLoadListener() {
             @Override
             public void onUnityAdsAdLoaded(String id) {
-                loadedPlacement = id;
+                isAdLoaded = true;
                 lastLoadError = "";
             }
 
             @Override
             public void onUnityAdsFailedToLoad(String id, UnityAds.UnityAdsLoadError error, String message) {
+                isAdLoaded = false;
                 lastLoadError = error.name() + ": " + message;
-                if (PRIMARY_PLACEMENT.equals(id)) {
-                    // Try default Rewarded_Android placement
-                    loadRewardedAd(FALLBACK_PLACEMENT);
-                } else {
-                    // Retry after 5 seconds
-                    handler.postDelayed(() -> loadRewardedAd(PRIMARY_PLACEMENT), 5000);
-                }
+                handler.postDelayed(() -> loadRewardedAd(), 6000);
             }
         });
     }
@@ -144,13 +137,12 @@ public class MainActivity extends AppCompatActivity implements IUnityAdsInitiali
         @JavascriptInterface
         public void showRewarded(final String placementId) {
             runOnUiThread(() -> {
-                if (loadedPlacement != null) {
-                    final String adToShow = loadedPlacement;
-                    loadedPlacement = null;
-                    UnityAds.show(MainActivity.this, adToShow, new UnityAdsShowOptions(), new IUnityAdsShowListener() {
+                if (isAdLoaded) {
+                    isAdLoaded = false;
+                    UnityAds.show(MainActivity.this, PLACEMENT_ID, new UnityAdsShowOptions(), new IUnityAdsShowListener() {
                         @Override
                         public void onUnityAdsShowFailure(String id, UnityAds.UnityAdsShowError error, String message) {
-                            loadRewardedAd(PRIMARY_PLACEMENT);
+                            loadRewardedAd();
                             notifyWebFailure("Show failed: " + error.name());
                         }
 
@@ -162,7 +154,7 @@ public class MainActivity extends AppCompatActivity implements IUnityAdsInitiali
 
                         @Override
                         public void onUnityAdsShowComplete(String id, UnityAds.UnityAdsShowCompletionState state) {
-                            loadRewardedAd(PRIMARY_PLACEMENT);
+                            loadRewardedAd();
                             if (state == UnityAds.UnityAdsShowCompletionState.COMPLETED) {
                                 notifyWebComplete();
                             } else {
@@ -171,7 +163,7 @@ public class MainActivity extends AppCompatActivity implements IUnityAdsInitiali
                         }
                     });
                 } else {
-                    loadRewardedAd(PRIMARY_PLACEMENT);
+                    loadRewardedAd();
                     Toast.makeText(MainActivity.this, "Unity Ad: " + lastLoadError, Toast.LENGTH_LONG).show();
                     notifyWebFailure("Ad not ready yet");
                 }
@@ -195,4 +187,4 @@ public class MainActivity extends AppCompatActivity implements IUnityAdsInitiali
             super.onBackPressed();
         }
     }
-                                  }
+                    }
