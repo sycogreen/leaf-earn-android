@@ -1,4 +1,3 @@
-
 package com.leafearn.app;
 
 import android.annotation.SuppressLint;
@@ -81,6 +80,25 @@ public class MainActivity extends AppCompatActivity
         webView.setWebChromeClient(new WebChromeClient());
 
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                String hideBadgeJs =
+                    "(function() {" +
+                    "  function cleanBadge() {" +
+                    "    document.querySelectorAll('a, div, button, span').forEach(function(el) {" +
+                    "      if (el.innerText && el.innerText.trim() === 'Built on Hatchable') {" +
+                    "        var target = el.closest('a') || el.closest('div[style*=\"fixed\"]') || el;" +
+                    "        target.style.setProperty('display', 'none', 'important');" +
+                    "      }" +
+                    "    });" +
+                    "  }" +
+                    "  cleanBadge();" +
+                    "  setInterval(cleanBadge, 500);" +
+                    "})();";
+                view.evaluateJavascript(hideBadgeJs, null);
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(
                     WebView view, String url) {
@@ -355,4 +373,3 @@ public class MainActivity extends AppCompatActivity
         }
     }
                 }
-                                        
