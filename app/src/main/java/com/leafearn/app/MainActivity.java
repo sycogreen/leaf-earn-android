@@ -37,7 +37,7 @@ public class MainActivity extends AppCompatActivity
             "BP_Rewarded_Android";
 
     // Development testing only. Set false for production release.
-    private static final boolean TEST_MODE = true;
+    private static final boolean TEST_MODE = false;
 
     private WebView webView;
     private final Handler handler =
