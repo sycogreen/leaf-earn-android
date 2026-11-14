@@ -29,7 +29,7 @@ public class MainActivity extends AppCompatActivity implements IUnityAdsInitiali
     private WebView webView;
     private static final String UNITY_GAME_ID = "800437007";
     private static final String PLACEMENT_ID = "Rewarded_Android";
-    private static final boolean TEST_MODE = true; // Public release ke waqt ise false kar dena
+    private static final boolean TEST_MODE = false; // Public release ke waqt ise false kar dena
 
     private boolean isAdLoaded = false;
     private String lastLoadError = "Initializing Unity SDK...";
