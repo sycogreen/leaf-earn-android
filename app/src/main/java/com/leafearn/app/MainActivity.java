@@ -13,7 +13,6 @@ import android.view.View;
 import android.view.Window;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
-import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -32,58 +31,34 @@ import org.json.JSONObject;
 public class MainActivity extends AppCompatActivity
         implements IUnityAdsInitializationListener {
 
-    private static final String TAG = "LeafEarn";
+    private static final String TAG = "LeafEarnUnity";
 
-    private static final String APP_URL =
-            "https://leaf-earn.hatchable.site";
-
-    private static final String UNITY_GAME_ID =
-            "800437007";
-
-    // Must exactly match the Android Ad Unit ID in Unity Dashboard.
-    private static final String PLACEMENT_ID =
+    private static final String GAME_ID = "800437007";
+    private static final String DEFAULT_PLACEMENT =
             "BP_Rewarded_Android";
 
-    // Keep true while testing. Change to false for production
-    // after verifying the integration and required ad settings.
+    // Development testing only. Set false for production release.
     private static final boolean TEST_MODE = true;
 
     private WebView webView;
-
     private final Handler handler =
             new Handler(Looper.getMainLooper());
 
-    private boolean sdkInitialized = false;
-    private boolean isAdLoaded = false;
-    private boolean isAdLoading = false;
-    private boolean isAdShowing = false;
-    private boolean activityDestroyed = false;
+    private boolean initialized = false;
+    private boolean loading = false;
+    private boolean showing = false;
+    private boolean adLoaded = false;
 
-    private String lastLoadError = "Unity SDK initializing...";
+    private String activePlacement = DEFAULT_PLACEMENT;
+    private String lastError = "Unity SDK initializing...";
 
-    private final Runnable retryLoadRunnable =
-            this::loadRewardedAd;
-
-    private final Runnable retryInitRunnable =
-            () -> UnityAds.initialize(
-                    MainActivity.this,
-                    UNITY_GAME_ID,
-                    TEST_MODE,
-                    MainActivity.this
-            );
-
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        activityDestroyed = false;
-
         Window window = getWindow();
-        window.setStatusBarColor(
-                Color.parseColor("#F0FDF4")
-        );
-
+        window.setStatusBarColor(Color.parseColor("#F0FDF4"));
         window.getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
         );
@@ -92,13 +67,11 @@ public class MainActivity extends AppCompatActivity
         setContentView(webView);
 
         WebSettings settings = webView.getSettings();
-
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setJavaScriptCanOpenWindowsAutomatically(true);
-        settings.setSupportMultipleWindows(false);
+        settings.setAllowFileAccess(false);
+        settings.setJavaScriptCanOpenWindowsAutomatically(false);
 
         webView.addJavascriptInterface(
                 new UnityAdsBridge(),
@@ -108,509 +81,265 @@ public class MainActivity extends AppCompatActivity
         webView.setWebChromeClient(new WebChromeClient());
 
         webView.setWebViewClient(new WebViewClient() {
-
-            @Override
-            public void onPageFinished(
-                    WebView view,
-                    String url
-            ) {
-                super.onPageFinished(view, url);
-                hideHatchableBadge(view);
-            }
-
             @Override
             public boolean shouldOverrideUrlLoading(
-                    WebView view,
-                    WebResourceRequest request
-            ) {
-                return handleUrl(request.getUrl());
-            }
+                    WebView view, String url) {
 
-            @SuppressWarnings("deprecation")
-            @Override
-            public boolean shouldOverrideUrlLoading(
-                    WebView view,
-                    String url
-            ) {
-                return handleUrl(Uri.parse(url));
+                if (url.startsWith(
+                        "https://leaf-earn.hatchable.site")) {
+                    return false;
+                }
+
+                try {
+                    Intent intent = new Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse(url)
+                    );
+                    startActivity(intent);
+                    return true;
+                } catch (Exception e) {
+                    Log.e(TAG, "External URL error", e);
+                    return true;
+                }
             }
         });
 
-        // Initialize Unity Ads using the current Activity.
         UnityAds.initialize(
                 this,
-                UNITY_GAME_ID,
+                GAME_ID,
                 TEST_MODE,
                 this
         );
 
-        // Load Leaf Earn.
-        webView.loadUrl(APP_URL);
+        webView.loadUrl(
+                "https://leaf-earn.hatchable.site"
+        );
     }
-
-    private boolean handleUrl(Uri uri) {
-
-        if (uri == null) {
-            return false;
-        }
-
-        String host = uri.getHost();
-
-        if (host == null) {
-            return false;
-        }
-
-        // Keep the app and offerwall inside WebView.
-        if (host.equals("leaf-earn.hatchable.site")
-                || host.equals("appstorevault.mobi")
-                || host.endsWith(".appstorevault.mobi")
-                || host.equals("cpalead.com")
-                || host.endsWith(".cpalead.com")
-                || host.equals("cpx-research.com")
-                || host.endsWith(".cpx-research.com")
-                || host.equals("timewall.io")
-                || host.endsWith(".timewall.io")) {
-            return false;
-        }
-
-        // Open other external websites in the device browser.
-        try {
-            Intent intent = new Intent(
-                    Intent.ACTION_VIEW,
-                    uri
-            );
-
-            startActivity(intent);
-            return true;
-
-        } catch (Exception e) {
-            Log.e(TAG, "External URL error", e);
-            return false;
-        }
-    }
-
-    private void hideHatchableBadge(WebView view) {
-
-        String js =
-                "(function() {" +
-                " const hide = function() {" +
-                "  document.querySelectorAll('a,div,button,span')" +
-                "   .forEach(function(el) {" +
-                "    if (el.innerText &&" +
-                "        el.innerText.trim() === 'Built on Hatchable') {" +
-                "      const target = el.closest('a') || el;" +
-                "      target.style.setProperty(" +
-                "        'display','none','important');" +
-                "    }" +
-                "   });" +
-                " };" +
-                " hide();" +
-                " const observer = new MutationObserver(hide);" +
-                " observer.observe(document.body, {" +
-                "  childList:true,subtree:true" +
-                " });" +
-                "})();";
-
-        view.evaluateJavascript(js, null);
-    }
-
-    // ------------------------------------------------
-    // UNITY INITIALIZATION
-    // ------------------------------------------------
 
     @Override
     public void onInitializationComplete() {
-
-        runOnUiThread(() -> {
-
-            if (activityDestroyed) return;
-
-            sdkInitialized = true;
-            lastLoadError = "Loading rewarded ad...";
-
-            Log.d(TAG, "Unity SDK initialized successfully");
-
-            loadRewardedAd();
-        });
+        initialized = true;
+        lastError = "";
+        Log.d(TAG, "Unity initialization successful");
+        loadRewardedAd(activePlacement);
     }
 
     @Override
     public void onInitializationFailed(
             UnityAds.UnityAdsInitializationError error,
-            String message
-    ) {
+            String message) {
 
-        runOnUiThread(() -> {
+        initialized = false;
+        lastError = "Initialization failed: "
+                + error.name() + " - " + message;
 
-            sdkInitialized = false;
-            isAdLoaded = false;
+        Log.e(TAG, lastError);
 
-            lastLoadError =
-                    "Initialization failed: "
-                    + error.name()
-                    + " - "
-                    + message;
-
-            Log.e(TAG, lastLoadError);
-
-            handler.removeCallbacks(retryInitRunnable);
-
-            if (!activityDestroyed) {
-                handler.postDelayed(
-                        retryInitRunnable,
-                        10000
+        handler.postDelayed(() -> {
+            if (!initialized) {
+                UnityAds.initialize(
+                        this,
+                        GAME_ID,
+                        TEST_MODE,
+                        this
                 );
             }
-        });
+        }, 10000);
     }
 
-    // ------------------------------------------------
-    // LOAD REWARDED AD
-    // ------------------------------------------------
-
-    private void loadRewardedAd() {
-
-        if (activityDestroyed) return;
-
-        if (!sdkInitialized) {
-            lastLoadError = "Unity SDK is not initialized";
+    private void loadRewardedAd(String placement) {
+        if (!initialized || loading || showing) {
             return;
         }
 
-        if (isAdLoaded || isAdLoading || isAdShowing) {
-            return;
+        if (placement == null || placement.trim().isEmpty()) {
+            placement = DEFAULT_PLACEMENT;
         }
 
-        isAdLoading = true;
-        lastLoadError = "Loading rewarded ad...";
+        activePlacement = placement.trim();
+        loading = true;
+        adLoaded = false;
 
-        Log.d(TAG, "Loading Ad Unit: " + PLACEMENT_ID);
+        Log.d(TAG, "Loading placement: " + activePlacement);
 
         UnityAds.load(
-                PLACEMENT_ID,
+                activePlacement,
                 new IUnityAdsLoadListener() {
 
                     @Override
                     public void onUnityAdsAdLoaded(String id) {
+                        loading = false;
+                        adLoaded = true;
+                        lastError = "";
 
-                        runOnUiThread(() -> {
-
-                            isAdLoading = false;
-
-                            if (activityDestroyed) return;
-
-                            if (!PLACEMENT_ID.equals(id)) {
-                                lastLoadError =
-                                        "Unexpected loaded Ad Unit: " + id;
-                                isAdLoaded = false;
-                                return;
-                            }
-
-                            isAdLoaded = true;
-                            lastLoadError = "";
-
-                            Log.d(TAG, "Rewarded ad loaded");
-                        });
+                        Log.d(TAG, "Ad loaded: " + id);
                     }
 
                     @Override
                     public void onUnityAdsFailedToLoad(
                             String id,
                             UnityAds.UnityAdsLoadError error,
-                            String message
-                    ) {
+                            String message) {
 
-                        runOnUiThread(() -> {
+                        loading = false;
+                        adLoaded = false;
 
-                            isAdLoading = false;
-                            isAdLoaded = false;
+                        lastError = error.name() + ": " + message;
 
-                            lastLoadError =
-                                    error.name() + ": " + message;
+                        Log.e(TAG, "Ad load failed: " + lastError);
 
-                            Log.e(
-                                    TAG,
-                                    "Ad load failed for "
-                                            + id
-                                            + ": "
-                                            + lastLoadError
-                            );
-
-                            handler.removeCallbacks(
-                                    retryLoadRunnable
-                            );
-
-                            if (!activityDestroyed) {
-                                handler.postDelayed(
-                                        retryLoadRunnable,
-                                        10000
-                                );
+                        handler.postDelayed(() -> {
+                            if (initialized && !showing && !adLoaded) {
+                                loadRewardedAd(activePlacement);
                             }
-                        });
+                        }, 10000);
                     }
                 }
         );
     }
-
-    // ------------------------------------------------
-    // JAVASCRIPT BRIDGE
-    // ------------------------------------------------
 
     public class UnityAdsBridge {
 
         @JavascriptInterface
-        public void showRewarded(
-                final String requestedPlacementId
-        ) {
-
+        public void showRewarded(String requestedPlacement) {
             runOnUiThread(() -> {
 
-                if (activityDestroyed) return;
+                String placement =
+                        requestedPlacement == null
+                                || requestedPlacement.trim().isEmpty()
+                                ? DEFAULT_PLACEMENT
+                                : requestedPlacement.trim();
 
-                // Validate the requested Ad Unit.
-                if (!PLACEMENT_ID.equals(requestedPlacementId)) {
-
+                if (!initialized) {
                     notifyWebFailure(
-                            "Unity placement ID mismatch"
+                            "Unity SDK is not initialized yet."
                     );
-
-                    Log.e(
-                            TAG,
-                            "Requested placement: "
-                                    + requestedPlacementId
-                    );
-
                     return;
                 }
 
-                if (!sdkInitialized) {
-
+                if (showing) {
                     notifyWebFailure(
-                            "Unity SDK is not initialized yet"
+                            "An ad is already playing."
                     );
-
                     return;
                 }
 
-                if (isAdShowing) {
+                if (!placement.equals(activePlacement)) {
+                    adLoaded = false;
+                    loadRewardedAd(placement);
 
                     notifyWebFailure(
-                            "An ad is already showing"
+                            "Ad is loading. Please try again shortly."
                     );
-
                     return;
                 }
 
-                if (!isAdLoaded) {
-
-                    loadRewardedAd();
+                if (!adLoaded) {
+                    loadRewardedAd(placement);
 
                     notifyWebFailure(
-                            "Rewarded ad is not ready. Please try again shortly."
+                            "Ad is not ready. " + lastError
                     );
-
-                    Toast.makeText(
-                            MainActivity.this,
-                            "Ad is loading. Please try again.",
-                            Toast.LENGTH_SHORT
-                    ).show();
-
                     return;
                 }
 
-                showLoadedAd();
+                adLoaded = false;
+                showing = true;
+
+                Log.d(TAG, "Showing placement: " + placement);
+
+                UnityAds.show(
+                        MainActivity.this,
+                        placement,
+                        new UnityAdsShowOptions(),
+                        new IUnityAdsShowListener() {
+
+                            @Override
+                            public void onUnityAdsShowStart(String id) {
+                                Log.d(TAG, "Ad started: " + id);
+                            }
+
+                            @Override
+                            public void onUnityAdsShowClick(String id) {
+                                Log.d(TAG, "Ad clicked: " + id);
+                            }
+
+                            @Override
+                            public void onUnityAdsShowFailure(
+                                    String id,
+                                    UnityAds.UnityAdsShowError error,
+                                    String message) {
+
+                                showing = false;
+
+                                String reason =
+                                        error.name() + ": " + message;
+
+                                Log.e(TAG, "Show failed: " + reason);
+
+                                notifyWebFailure(reason);
+                                loadRewardedAd(activePlacement);
+                            }
+
+                            @Override
+                            public void onUnityAdsShowComplete(
+                                    String id,
+                                    UnityAds.UnityAdsShowCompletionState state) {
+
+                                showing = false;
+
+                                if (state ==
+                                        UnityAds.UnityAdsShowCompletionState.COMPLETED) {
+
+                                    Log.d(TAG, "Ad completed");
+                                    notifyWebComplete();
+
+                                } else {
+                                    notifyWebFailure(
+                                            "Ad was not completed."
+                                    );
+                                }
+
+                                loadRewardedAd(activePlacement);
+                            }
+                        }
+                );
             });
         }
     }
 
-    // ------------------------------------------------
-    // SHOW REWARDED AD
-    // ------------------------------------------------
-
-    private void showLoadedAd() {
-
-        if (activityDestroyed || !isAdLoaded || isAdShowing) {
-            return;
-        }
-
-        isAdLoaded = false;
-        isAdShowing = true;
-
-        Log.d(TAG, "Showing rewarded ad");
-
-        UnityAds.show(
-                MainActivity.this,
-                PLACEMENT_ID,
-                new UnityAdsShowOptions(),
-                new IUnityAdsShowListener() {
-
-                    @Override
-                    public void onUnityAdsShowFailure(
-                            String id,
-                            UnityAds.UnityAdsShowError error,
-                            String message
-                    ) {
-
-                        runOnUiThread(() -> {
-
-                            isAdShowing = false;
-                            isAdLoaded = false;
-
-                            String reason =
-                                    "Show failed: "
-                                    + error.name()
-                                    + " - "
-                                    + message;
-
-                            Log.e(TAG, reason);
-
-                            notifyWebFailure(reason);
-
-                            loadRewardedAd();
-                        });
-                    }
-
-                    @Override
-                    public void onUnityAdsShowStart(String id) {
-
-                        Log.d(TAG, "Rewarded ad started");
-                    }
-
-                    @Override
-                    public void onUnityAdsShowClick(String id) {
-
-                        Log.d(TAG, "Rewarded ad clicked");
-                    }
-
-                    @Override
-                    public void onUnityAdsShowComplete(
-                            String id,
-                            UnityAds.UnityAdsShowCompletionState state
-                    ) {
-
-                        runOnUiThread(() -> {
-
-                            isAdShowing = false;
-
-                            Log.d(
-                                    TAG,
-                                    "Ad completed with state: "
-                                            + state.name()
-                            );
-
-                            if (state ==
-                                    UnityAds.UnityAdsShowCompletionState.COMPLETED) {
-
-                                // Notify web app only after completion.
-                                notifyWebComplete();
-
-                            } else {
-
-                                notifyWebFailure(
-                                        "Ad was not completed"
-                                );
-                            }
-
-                            // Preload the next rewarded ad.
-                            loadRewardedAd();
-                        });
-                    }
-                }
-        );
-    }
-
-    // ------------------------------------------------
-    // WEB CALLBACKS
-    // ------------------------------------------------
-
     private void notifyWebComplete() {
+        if (webView == null) return;
 
-        if (webView == null || activityDestroyed) return;
-
-        webView.post(() -> {
-
-            if (webView == null || activityDestroyed) return;
-
-            webView.evaluateJavascript(
-                    "if (typeof window.onUnityRewardedComplete === 'function') {" +
-                            "window.onUnityRewardedComplete();" +
-                            "}",
-                    null
-            );
-        });
+        webView.post(() -> webView.evaluateJavascript(
+                "if(window.onUnityRewardedComplete)"
+                        + "{window.onUnityRewardedComplete();}",
+                null
+        ));
     }
 
     private void notifyWebFailure(String reason) {
+        if (webView == null) return;
 
-        if (webView == null || activityDestroyed) return;
+        String safeReason = JSONObject.quote(
+                reason == null ? "Unity ad failed." : reason
+        );
 
-        final String safeReason =
-                JSONObject.quote(
-                        reason == null
-                                ? "Unknown Unity Ads error"
-                                : reason
-                );
-
-        webView.post(() -> {
-
-            if (webView == null || activityDestroyed) return;
-
-            String js =
-                    "if (typeof window.onUnityRewardedFailed === 'function') {" +
-                    "window.onUnityRewardedFailed(" +
-                    safeReason +
-                    ");" +
-                    "}";
-
-            webView.evaluateJavascript(js, null);
-        });
-    }
-
-    // ------------------------------------------------
-    // ACTIVITY LIFECYCLE
-    // ------------------------------------------------
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-
-        if (webView != null) {
-            webView.onResume();
-        }
-
-        if (sdkInitialized && !isAdLoaded && !isAdLoading && !isAdShowing) {
-            loadRewardedAd();
-        }
-    }
-
-    @Override
-    protected void onPause() {
-
-        if (webView != null) {
-            webView.onPause();
-        }
-
-        super.onPause();
+        webView.post(() -> webView.evaluateJavascript(
+                "if(window.onUnityRewardedFailed)"
+                        + "{window.onUnityRewardedFailed("
+                        + safeReason + ");}",
+                null
+        ));
     }
 
     @Override
     protected void onDestroy() {
-
-        activityDestroyed = true;
-
         handler.removeCallbacksAndMessages(null);
 
         if (webView != null) {
-
-            webView.removeJavascriptInterface(
-                    "AndroidUnityAds"
-            );
-
-            webView.stopLoading();
-            webView.loadUrl("about:blank");
-            webView.removeAllViews();
+            webView.removeJavascriptInterface("AndroidUnityAds");
             webView.destroy();
-
             webView = null;
         }
 
@@ -618,14 +347,12 @@ public class MainActivity extends AppCompatActivity
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     public void onBackPressed() {
-
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
         } else {
             super.onBackPressed();
         }
     }
-            }
-                    
+                }
+                                        
