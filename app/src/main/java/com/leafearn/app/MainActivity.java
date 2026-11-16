@@ -1,7 +1,7 @@
 package com.leafearn.app;
 
-import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -9,7 +9,6 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -26,9 +25,6 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.app.NotificationCompat;
-import androidx.core.content.ContextCompat;
 
 import com.unity3d.ads.IUnityAdsInitializationListener;
 import com.unity3d.ads.IUnityAdsLoadListener;
@@ -42,7 +38,6 @@ public class MainActivity extends AppCompatActivity
         implements IUnityAdsInitializationListener {
 
     private static final String TAG = "LeafEarnUnity";
-    private static final int REQ_POST_NOTIFICATIONS = 1001;
 
     private static final String GAME_ID = "800437007";
     private static final String DEFAULT_PLACEMENT =
@@ -74,8 +69,6 @@ public class MainActivity extends AppCompatActivity
                 View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
         );
 
-        requestNotificationPermissionIfNeeded();
-
         webView = new WebView(this);
         setContentView(webView);
 
@@ -86,13 +79,11 @@ public class MainActivity extends AppCompatActivity
         settings.setAllowFileAccess(false);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
 
-        // Existing Unity Rewarded Ads Bridge (Untouched)
         webView.addJavascriptInterface(
                 new UnityAdsBridge(),
                 "AndroidUnityAds"
         );
 
-        // Native Notification & System Bridge
         webView.addJavascriptInterface(
                 new AppNotificationBridge(),
                 "Android"
@@ -155,20 +146,6 @@ public class MainActivity extends AppCompatActivity
         );
     }
 
-    private void requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(
-                    this, Manifest.permission.POST_NOTIFICATIONS)
-                    != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(
-                        this,
-                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
-                        REQ_POST_NOTIFICATIONS
-                );
-            }
-        }
-    }
-
     public class AppNotificationBridge {
 
         @JavascriptInterface
@@ -182,16 +159,6 @@ public class MainActivity extends AppCompatActivity
 
                     if (nm == null) return;
 
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        NotificationChannel ch = new NotificationChannel(
-                                channelId,
-                                "Leaf Earn Rewards & Alerts",
-                                NotificationManager.IMPORTANCE_HIGH
-                        );
-                        ch.setDescription("Notifications for referrals, contest rank, and gift card payouts");
-                        nm.createNotificationChannel(ch);
-                    }
-
                     if (copyText != null && !copyText.trim().isEmpty()) {
                         ClipboardManager clipboard = (ClipboardManager)
                                 ctx.getSystemService(Context.CLIPBOARD_SERVICE);
@@ -203,24 +170,41 @@ public class MainActivity extends AppCompatActivity
 
                     Intent intent = new Intent(ctx, MainActivity.class);
                     intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                            ? PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                            : PendingIntent.FLAG_UPDATE_CURRENT;
+
                     PendingIntent pi = PendingIntent.getActivity(
                             ctx,
                             (int) (System.currentTimeMillis() % 100000),
                             intent,
-                            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                            flags
                     );
 
-                    NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, channelId)
+                    Notification.Builder builder;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        NotificationChannel ch = new NotificationChannel(
+                                channelId,
+                                "Leaf Earn Alerts",
+                                NotificationManager.IMPORTANCE_HIGH
+                        );
+                        nm.createNotificationChannel(ch);
+                        builder = new Notification.Builder(ctx, channelId);
+                    } else {
+                        builder = new Notification.Builder(ctx);
+                    }
+
+                    Notification notification = builder
                             .setSmallIcon(R.mipmap.ic_launcher)
                             .setContentTitle(title != null ? title : "Leaf Earn")
                             .setContentText(message != null ? message : "")
-                            .setStyle(new NotificationCompat.BigTextStyle()
+                            .setStyle(new Notification.BigTextStyle()
                                     .bigText(message != null ? message : ""))
-                            .setPriority(NotificationCompat.PRIORITY_HIGH)
                             .setAutoCancel(true)
-                            .setContentIntent(pi);
+                            .setContentIntent(pi)
+                            .build();
 
-                    nm.notify((int) (System.currentTimeMillis() % 100000), builder.build());
+                    nm.notify((int) (System.currentTimeMillis() % 100000), notification);
                 } catch (Exception e) {
                     Log.e(TAG, "Notification error", e);
                 }
@@ -467,5 +451,5 @@ public class MainActivity extends AppCompatActivity
             super.onBackPressed();
         }
     }
-                                 }
-                                
+            }
+                
