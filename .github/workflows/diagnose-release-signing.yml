@@ -13,6 +13,7 @@ permissions:
 jobs:
   inspect-release-apk:
     runs-on: ubuntu-latest
+
     steps:
       - name: Download and verify exact release APK
         run: |
@@ -20,6 +21,7 @@ jobs:
           curl -fL --retry 3 \
             "https://github.com/sycogreen/leaf-earn-android/releases/download/v1.0/Leaf-Earn.apk" \
             -o Leaf-Earn-v1.0.apk
+
           echo "507bb945265b4e1791d16cf5bf3dd1345d0656c0c2b4ead502cb839c5958572e  Leaf-Earn-v1.0.apk" | sha256sum --check
 
       - name: Install Android tools
