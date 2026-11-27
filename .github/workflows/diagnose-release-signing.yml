@@ -2,6 +2,7 @@
 name: Diagnose v1.0 Release APK Signing
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - ".github/workflows/diagnose-release-signing.yml"
