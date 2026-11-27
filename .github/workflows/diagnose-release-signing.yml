@@ -24,8 +24,10 @@ jobs:
 
           echo "507bb945265b4e1791d16cf5bf3dd1345d0656c0c2b4ead502cb839c5958572e  Leaf-Earn-v1.0.apk" | sha256sum --check
 
-      - name: Install Android tools
-        uses: android-actions/setup-android@v3
+      - name: Install Android build tools
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "build-tools;35.0.0"
 
       - name: Print actual APK certificate
         run: |
