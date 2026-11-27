@@ -46,7 +46,7 @@ jobs:
             exit 1
           fi
 
-          chmod +x "$APK_SIGNER"
+        
 
           echo "APK_SIGNER=$APK_SIGNER" >> "$GITHUB_ENV"
 
