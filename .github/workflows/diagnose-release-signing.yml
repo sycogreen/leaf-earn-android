@@ -52,16 +52,21 @@ jobs:
 
           echo "Found apksigner successfully."
 
+      
       - name: Print actual APK certificate
         shell: bash
         run: |
           set -euo pipefail
 
-          "$APK_SIGNER" version
+          "$APK_SIGNER" verify Leaf-Earn-v1.0.apk
 
-          echo "Verifying APK signature..."
-          "$APK_SIGNER" verify --verbose Leaf-Earn-v1.0.apk
+          "$APK_SIGNER" verify --print-certs Leaf-Earn-v1.0.apk \
+            > certificate-output.txt 2>&1 || true
 
-          echo "Certificate details:"
-          "$APK_SIGNER" verify --print-certs Leaf-Earn-v1.0.apk
+          echo "========== APK CERTIFICATE =========="
+
+          grep -i "certificate SHA-1 digest" certificate-output.txt
+          grep -i "certificate SHA-256 digest" certificate-output.txt
+
+          echo "====================================="
           
