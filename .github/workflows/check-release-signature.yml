@@ -1,0 +1,26 @@
+
+name: Inspect v1.0 APK Signing Certificate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Download v1.0 APK
+        run: |
+          curl -fL "https://github.com/sycogreen/leaf-earn-android/releases/download/v1.0/Leaf-Earn.apk" -o Leaf-Earn-v1.0.apk
+          sha256sum Leaf-Earn-v1.0.apk
+
+      - name: Check signing certificate
+        run: |
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --verbose --print-certs Leaf-Earn-v1.0.apk
+          
