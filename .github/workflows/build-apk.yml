@@ -1,3 +1,4 @@
+
 name: Build Leaf Earn APK
 
 on:
@@ -24,7 +25,7 @@ jobs:
           cache-disabled: true
 
       - name: Build Debug APK
-        run: gradle assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon --stacktrace --info
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
