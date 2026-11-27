@@ -24,13 +24,21 @@ jobs:
 
           echo "507bb945265b4e1791d16cf5bf3dd1345d0656c0c2b4ead502cb839c5958572e  Leaf-Earn-v1.0.apk" | sha256sum --check
 
-      - name: Install Android build tools
+            - name: Install Android build tools
         run: |
-          yes | sdkmanager --licenses
-          sdkmanager "build-tools;35.0.0"
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/android-tools"
+          cd "$RUNNER_TEMP/android-tools"
 
+          curl -fL \
+            "https://dl.google.com/android/repository/build-tools_r35-linux.zip" \
+            -o build-tools.zip
+
+          unzip -q build-tools.zip
+
+          ./android-15/apksigner version
+
+          echo "$RUNNER_TEMP/android-tools/android-15" >> "$GITHUB_PATH"
       - name: Print actual APK certificate
         run: |
-          sdkmanager "build-tools;35.0.0"
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs Leaf-Earn-v1.0.apk
-          
+          apksigner verify --print-certs Leaf-Earn-v1.0.apk
