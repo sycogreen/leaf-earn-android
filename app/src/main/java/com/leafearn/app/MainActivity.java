@@ -1,3 +1,4 @@
+
 package com.leafearn.app;
 
 import android.annotation.SuppressLint;
@@ -9,6 +10,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -25,6 +27,8 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.firebase.messaging.FirebaseMessaging;
 
 import com.unity3d.ads.IUnityAdsInitializationListener;
 import com.unity3d.ads.IUnityAdsLoadListener;
@@ -43,10 +47,13 @@ public class MainActivity extends AppCompatActivity
     private static final String DEFAULT_PLACEMENT =
             "BP_Rewarded_Android";
 
-    // Development testing only. Set false for production release.
+    private static final String CHANNEL_ID = "leaf_earn_alerts";
+    private static final int NOTIFICATION_PERMISSION_REQUEST = 1001;
+
     private static final boolean TEST_MODE = false;
 
     private WebView webView;
+
     private final Handler handler =
             new Handler(Looper.getMainLooper());
 
@@ -68,6 +75,9 @@ public class MainActivity extends AppCompatActivity
         window.getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
         );
+
+        createNotificationChannel();
+        requestNotificationPermission();
 
         webView = new WebView(this);
         setContentView(webView);
@@ -92,9 +102,11 @@ public class MainActivity extends AppCompatActivity
         webView.setWebChromeClient(new WebChromeClient());
 
         webView.setWebViewClient(new WebViewClient() {
+
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+
                 String hideBadgeJs =
                     "(function() {" +
                     "  function cleanBadge() {" +
@@ -108,6 +120,7 @@ public class MainActivity extends AppCompatActivity
                     "  cleanBadge();" +
                     "  setInterval(cleanBadge, 500);" +
                     "})();";
+
                 view.evaluateJavascript(hideBadgeJs, null);
             }
 
@@ -127,6 +140,7 @@ public class MainActivity extends AppCompatActivity
                     );
                     startActivity(intent);
                     return true;
+
                 } catch (Exception e) {
                     Log.e(TAG, "External URL error", e);
                     return true;
@@ -146,69 +160,188 @@ public class MainActivity extends AppCompatActivity
         );
     }
 
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationManager nm =
+                    (NotificationManager) getSystemService(
+                            Context.NOTIFICATION_SERVICE
+                    );
+
+            if (nm != null) {
+                NotificationChannel channel =
+                        new NotificationChannel(
+                                CHANNEL_ID,
+                                "Leaf Earn Alerts",
+                                NotificationManager.IMPORTANCE_HIGH
+                        );
+
+                channel.setDescription(
+                        "Important updates from Leaf Earn"
+                );
+
+                nm.createNotificationChannel(channel);
+            }
+        }
+    }
+
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            if (checkSelfPermission(
+                    android.Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED) {
+
+                requestPermissions(
+                        new String[]{
+                                android.Manifest.permission.POST_NOTIFICATIONS
+                        },
+                        NOTIFICATION_PERMISSION_REQUEST
+                );
+            }
+        }
+    }
+
     public class AppNotificationBridge {
 
         @JavascriptInterface
-        public void showNotification(String title, String message, String copyText) {
+        public void showNotification(
+                String title,
+                String message,
+                String copyText) {
+
             runOnUiThread(() -> {
                 try {
                     Context ctx = MainActivity.this;
-                    String channelId = "leaf_earn_alerts";
-                    NotificationManager nm = (NotificationManager)
-                            ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+
+                    NotificationManager nm =
+                            (NotificationManager)
+                                    ctx.getSystemService(
+                                            Context.NOTIFICATION_SERVICE
+                                    );
 
                     if (nm == null) return;
 
-                    if (copyText != null && !copyText.trim().isEmpty()) {
-                        ClipboardManager clipboard = (ClipboardManager)
-                                ctx.getSystemService(Context.CLIPBOARD_SERVICE);
+                    if (copyText != null
+                            && !copyText.trim().isEmpty()) {
+
+                        ClipboardManager clipboard =
+                                (ClipboardManager)
+                                        ctx.getSystemService(
+                                                Context.CLIPBOARD_SERVICE
+                                        );
+
                         if (clipboard != null) {
-                            ClipData clip = ClipData.newPlainText("Redeem Code", copyText.trim());
+                            ClipData clip =
+                                    ClipData.newPlainText(
+                                            "Redeem Code",
+                                            copyText.trim()
+                                    );
+
                             clipboard.setPrimaryClip(clip);
                         }
                     }
 
-                    Intent intent = new Intent(ctx, MainActivity.class);
-                    intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                    int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                            ? PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-                            : PendingIntent.FLAG_UPDATE_CURRENT;
+                    Intent intent =
+                            new Intent(ctx, MainActivity.class);
 
-                    PendingIntent pi = PendingIntent.getActivity(
-                            ctx,
-                            (int) (System.currentTimeMillis() % 100000),
-                            intent,
-                            flags
+                    intent.setFlags(
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP
+                                    | Intent.FLAG_ACTIVITY_CLEAR_TOP
                     );
 
+                    int flags =
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                                    ? PendingIntent.FLAG_UPDATE_CURRENT
+                                    | PendingIntent.FLAG_IMMUTABLE
+                                    : PendingIntent.FLAG_UPDATE_CURRENT;
+
+                    PendingIntent pi =
+                            PendingIntent.getActivity(
+                                    ctx,
+                                    (int) (System.currentTimeMillis() % 100000),
+                                    intent,
+                                    flags
+                            );
+
                     Notification.Builder builder;
+
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        NotificationChannel ch = new NotificationChannel(
-                                channelId,
-                                "Leaf Earn Alerts",
-                                NotificationManager.IMPORTANCE_HIGH
+                        builder = new Notification.Builder(
+                                ctx,
+                                CHANNEL_ID
                         );
-                        nm.createNotificationChannel(ch);
-                        builder = new Notification.Builder(ctx, channelId);
                     } else {
                         builder = new Notification.Builder(ctx);
                     }
 
-                    Notification notification = builder
-                            .setSmallIcon(R.drawable.ic_launcher)
-                            .setContentTitle(title != null ? title : "Leaf Earn")
-                            .setContentText(message != null ? message : "")
-                            .setStyle(new Notification.BigTextStyle()
-                                    .bigText(message != null ? message : ""))
-                            .setAutoCancel(true)
-                            .setContentIntent(pi)
-                            .build();
+                    String safeTitle =
+                            title != null ? title : "Leaf Earn";
 
-                    nm.notify((int) (System.currentTimeMillis() % 100000), notification);
+                    String safeMessage =
+                            message != null ? message : "";
+
+                    Notification notification =
+                            builder
+                                    .setSmallIcon(R.drawable.ic_launcher)
+                                    .setContentTitle(safeTitle)
+                                    .setContentText(safeMessage)
+                                    .setStyle(
+                                            new Notification.BigTextStyle()
+                                                    .bigText(safeMessage)
+                                    )
+                                    .setAutoCancel(true)
+                                    .setContentIntent(pi)
+                                    .build();
+
+                    nm.notify(
+                            (int) (System.currentTimeMillis() % 100000),
+                            notification
+                    );
+
                 } catch (Exception e) {
                     Log.e(TAG, "Notification error", e);
                 }
             });
+        }
+
+        @JavascriptInterface
+        public void getFCMToken() {
+            FirebaseMessaging.getInstance()
+                    .getToken()
+                    .addOnCompleteListener(task -> {
+
+                        if (!task.isSuccessful()) {
+                            Log.e(TAG, "FCM token retrieval failed",
+                                    task.getException());
+                            return;
+                        }
+
+                        String token = task.getResult();
+
+                        if (token == null || webView == null) {
+                            return;
+                        }
+
+                        String safeToken = JSONObject.quote(token);
+
+                        runOnUiThread(() -> {
+                            if (webView != null) {
+                                webView.evaluateJavascript(
+                                        "if(window.onLeafEarnFcmToken){" +
+                                                "window.onLeafEarnFcmToken(" +
+                                                safeToken +
+                                                ");}",
+                                        null
+                                );
+                            }
+                        });
+                    });
+        }
+
+        @JavascriptInterface
+        public void requestNotificationPermission() {
+            runOnUiThread(
+                    MainActivity.this::requestNotificationPermission
+            );
         }
     }
 
@@ -216,7 +349,9 @@ public class MainActivity extends AppCompatActivity
     public void onInitializationComplete() {
         initialized = true;
         lastError = "";
+
         Log.d(TAG, "Unity initialization successful");
+
         loadRewardedAd(activePlacement);
     }
 
@@ -226,6 +361,7 @@ public class MainActivity extends AppCompatActivity
             String message) {
 
         initialized = false;
+
         lastError = "Initialization failed: "
                 + error.name() + " - " + message;
 
@@ -451,5 +587,5 @@ public class MainActivity extends AppCompatActivity
             super.onBackPressed();
         }
     }
-            }
-                
+        }
+            
