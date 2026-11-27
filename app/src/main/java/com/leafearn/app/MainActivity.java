@@ -195,7 +195,7 @@ public class MainActivity extends AppCompatActivity
                     }
 
                     Notification notification = builder
-                            .setSmallIcon(R.mipmap.ic_launcher)
+                            .setSmallIcon(R.drawable.ic_launcher)
                             .setContentTitle(title != null ? title : "Leaf Earn")
                             .setContentText(message != null ? message : "")
                             .setStyle(new Notification.BigTextStyle()
