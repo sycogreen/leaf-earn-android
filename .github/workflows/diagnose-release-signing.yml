@@ -1,0 +1,31 @@
+
+name: Diagnose v1.0 Release APK Signing
+
+on:
+  push:
+    paths:
+      - ".github/workflows/diagnose-release-signing.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-release-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download and verify exact release APK
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 \
+            "https://github.com/sycogreen/leaf-earn-android/releases/download/v1.0/Leaf-Earn.apk" \
+            -o Leaf-Earn-v1.0.apk
+          echo "507bb945265b4e1791d16cf5bf3dd1345d0656c0c2b4ead502cb839c5958572e  Leaf-Earn-v1.0.apk" | sha256sum --check
+
+      - name: Install Android tools
+        uses: android-actions/setup-android@v3
+
+      - name: Print actual APK certificate
+        run: |
+          sdkmanager "build-tools;35.0.0"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs Leaf-Earn-v1.0.apk
+          
